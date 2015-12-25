@@ -1,0 +1,105 @@
+---
+title: "Write Up -Practical Machine Learning"
+author: "Azlena Haron"
+date: "Friday, December 25, 2015"
+output: html_document
+---
+# Assignment Writeup 
+
+The aim was to train a model based on the data of various sensor values, which could later be used to predict the Classe variable.
+
+# Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+# Data 
+
+1)The training pmltraining.csv
+
+2)The test data pmltesting.csv
+
+## Data Cleaning and Prediction of Trainning Set
+
+The data given have some columns which containts a lot of missing (NA) values. The  NA values have to be removed, in order to model the data. 
+
+First step, to detect and eliminate columns with a lot of missing values:
+
+```{r}
+library(caret)
+# C:/Users/Azlena Haron/Desktop/datascience/Module8/writeup
+# Load the training data set
+trainingAll <- read.csv("pml-training.csv",na.strings=c("NA",""))
+
+# Discard columns with NAs
+NAs <- apply(trainingAll, 2, function(x) { sum(is.na(x)) })
+trainingValid <- trainingAll[, which(NAs == 0)]
+```
+This resulted in 60 columns (variables), instead of 160.
+
+After having removed the columns with missing values, then proceeded to create a subset of the training data set because of the whole set contained 19622 rows (observations). The Random Forests algorithm was not used because technical issues. Therefore, 20% of the whole HAR data set was take out as a representative sample. Moreover, after creating this subset, the columns related to timestamps, the X column, user_name, and new_window because they were not sensor values also removed:
+
+```{r}
+# Create a subset of trainingValid data set
+trainIndex <- createDataPartition(y = trainingValid$classe, p=0.2,list=FALSE)
+trainData <- trainingValid[trainIndex,]
+
+# Remove useless predictors
+removeIndex <- grep("timestamp|X|user_name|new_window", names(trainData))
+trainData <- trainData[, -removeIndex]
+```
+
+The result shows data set that had only 3927 rows of of 54 variables. The data model design using cross validation and 4-fold cross validation . After setting the trainControl, I have finally used the Random Forests (rf) algorithm in the following manner:
+
+```{r}
+# Configure the train control for cross-validation
+tc = trainControl(method = "cv", number = 4)
+
+# Fit the model using Random Forests algorithm
+modFit <- train(trainData$classe ~.,
+                data = trainData,
+                method="rf",
+                trControl = tc,
+                prox = TRUE,
+                allowParallel = TRUE)
+```
+Using Rffit, produce a good model performance and low out of sample error rate:
+
+```{r}
+print(modFit)
+```
+## Data Cleaning and Prediction Testing Set
+
+After having fit the model with training data, then used it for predictions on test data. Repeat the same step for test data and done for the training data set:
+
+```{r}
+print(modFit$finalModel)
+```
+
+
+```{r}
+# C:/Users/Azlena Haron/Desktop/datascience/Module8/writeup
+# Load test data
+testingAll = read.csv("pml-testing.csv",na.strings=c("NA",""))
+
+# Only take the columns of testingAll that are also in trainData
+testing <- testingAll[ , which(names(testingAll) %in% names(trainData))]
+
+# Run the prediction
+pred <- predict(modFit, newdata = testing)
+
+# Utility function provided by the instructor
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(pred)
+```
+
+## Conclusion
+
+The model performed predictions very accurately, it correctly predicted 20 cases out of 20. 
+
